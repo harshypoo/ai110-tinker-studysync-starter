@@ -15,10 +15,15 @@ def load_study_spots(csv_path: str) -> list:
     Load study spots from a CSV into a list of dicts, converting
     "distance_miles" to float and "seats_available" to int.
     """
-    # TODO: use csv.DictReader to read csv_path into a list of dicts.
-    # TODO: convert row["distance_miles"] to float and row["seats_available"] to int for each row.
-    raise NotImplementedError
-
+    with open(csv_path, newline="") as csvfile:
+        reader = csv.DictReader(csvfile)
+        spots = []
+        for row in reader:
+            # Convert distance_miles to float and seats_available to int
+            row["distance_miles"] = float(row["distance_miles"])
+            row["seats_available"] = int(row["seats_available"])
+            spots.append(row)
+    return spots
 
 def score_study_spot(profile: dict, spot: dict) -> tuple:
     """
@@ -33,7 +38,16 @@ def score_study_spot(profile: dict, spot: dict) -> tuple:
     # (compare using NOISE_ORDER), distance_miles vs max_distance, and
     # seats_available vs min_seats. Append a short string to `reasons` for
     # each factor that contributed, whether it helped or hurt the score.
-    raise NotImplementedError
+    score = 0.0
+    reasons = []
+    for matches, weight, positive, negative in (
+        (NOISE_ORDER[spot["noise_level"]] <= NOISE_ORDER[profile["max_noise"]], 3.0, "quiet enough", "too noisy"),
+        (spot["distance_miles"] <= profile["max_distance"], 2.0, "close enough", "too far"),
+        (spot["seats_available"] >= profile["min_seats"], 1.0, "enough seats", "not enough seats"),
+    ):
+        score += weight if matches else -weight
+        reasons.append(positive if matches else negative)
+    return score, reasons
 
 
 def rank_study_spots(profile: dict, spots: list, k: int = 3) -> list:
@@ -43,14 +57,16 @@ def rank_study_spots(profile: dict, spots: list, k: int = 3) -> list:
     """
     # TODO: score every spot with score_study_spot(), then use
     # sorted(..., key=..., reverse=True)[:k] to keep only the top k.
-    raise NotImplementedError
-
+    scored = [(spot, *score_study_spot(profile, spot)) for spot in spots]
+    return sorted(scored, key=lambda result: result[1], reverse=True)[:k]
+    
 
 def format_results(ranked: list) -> None:
     """Print each ranked study spot with its score and reasons, one line each."""
     # TODO: for each (spot, score, reasons) tuple, print a readable line, e.g.:
     # "1. Innovation Commons -- Score: 5.0 -- Because: quiet enough, close enough"
-    raise NotImplementedError
+    for i, (spot, score, reasons) in enumerate(ranked, start=1):
+        print(f"{i}. {spot['name']} -- Score: {score:.1f} -- Because: {', '.join(reasons)}")
 
 
 def render_study_spot_tab():
@@ -77,3 +93,8 @@ if __name__ == "__main__":
     profile = {"max_noise": "moderate", "max_distance": 1.0, "min_seats": 4}
     ranked = rank_study_spots(profile, spots, k=3)
     format_results(ranked)
+
+# Because noise has a higher weight than distance (3 versus 2), 
+# the ranking can consistently bury nearby but loud spots such as 
+# Student Union Tables and Courtyard Cafe, creating a filter bubble 
+# that narrows the options users ever see.
